@@ -338,7 +338,14 @@ namespace RunCat
             cpuTimer.Stop();
             notifyIcon.Visible = false;
 
-            channel.BasicPublish("", commandQueue, false, null, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { action = 3, @params = "pi" })));
+            try
+            {
+                channel.BasicPublish("", commandQueue, false, null, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { action = 3, @params = "pi" })));
+            }
+            catch (Exception)
+            {
+                // do nothing
+            }
 
             Application.Exit();
         }
@@ -419,7 +426,14 @@ namespace RunCat
                 rabbitConnection = rabbitConnectionFactory.CreateConnection();
                 channel = rabbitConnection.CreateModel();
 
-                channel.BasicPublish("", commandQueue, false, null, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { action = 3, @params = "rabbit" })));
+                try
+                {
+                    channel.BasicPublish("", commandQueue, false, null, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { action = 3, @params = "rabbit" })));
+                }
+                catch (Exception)
+                {
+                    // do nothing
+                }
 
                 messageSyncTimer.Interval = 2000;
                 messageSyncTimer.Tick += MessageSyncTimer_Tick;
@@ -442,9 +456,25 @@ namespace RunCat
                     memPercent = 100d * (hardwareInfo.MemoryStatus.TotalPhysical - hardwareInfo.MemoryStatus.AvailablePhysical) / hardwareInfo.MemoryStatus.TotalPhysical
                 }
             };
-            var properties = channel.CreateBasicProperties();
-            properties.Expiration = "2000";
-            channel.BasicPublish("", commandQueue, false, properties, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg)));
+
+            try
+            {
+                var properties = channel.CreateBasicProperties();
+                properties.Expiration = "2000";
+                channel.BasicPublish("", commandQueue, false, properties, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg)));
+            }
+            catch (Exception)
+            {
+                try
+                {
+                    rabbitConnection = rabbitConnectionFactory.CreateConnection();
+                    channel = rabbitConnection.CreateModel();
+                }
+                catch (Exception)
+                {
+
+                }
+            }
         }
     }
 }
