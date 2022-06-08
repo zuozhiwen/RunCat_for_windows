@@ -21,6 +21,11 @@ using System.Diagnostics;
 using System.Windows.Forms;
 using System.Resources;
 using System.ComponentModel;
+using RabbitMQ.Client;
+using Hardware.Info;
+using System.Text;
+using System.Text.Json;
+using System.IO;
 
 namespace RunCat
 {
@@ -64,6 +69,12 @@ namespace RunCat
         private Icon[] icons;
         private Timer animateTimer = new Timer();
         private Timer cpuTimer = new Timer();
+        private Timer messageSyncTimer = new Timer();
+        private ConnectionFactory rabbitConnectionFactory = new ConnectionFactory();
+        private IConnection rabbitConnection = null;
+        private IModel channel;
+        private IHardwareInfo hardwareInfo = new HardwareInfo();
+        private string commandQueue = null;
 
 
         public RunCatApplicationContext()
@@ -165,6 +176,7 @@ namespace RunCat
             SetAnimation();
             SetSpeed();
             StartObserveCPU();
+            messageSync();
 
             current = 1;
         }
@@ -390,5 +402,43 @@ namespace RunCat
             Process.Start(startInfo);
         }
 
+        private void messageSync()
+        {
+            var configFile = "rabbit_config.txt";
+            if (File.Exists(configFile))
+            {
+                var configs = File.ReadAllText(configFile).Split("|");
+                rabbitConnectionFactory.HostName = configs[0];
+                rabbitConnectionFactory.Port = Convert.ToInt32(configs[1]);
+                rabbitConnectionFactory.UserName = configs[2];
+                rabbitConnectionFactory.Password = configs[3];
+                this.commandQueue = configs[4];
+                rabbitConnection = rabbitConnectionFactory.CreateConnection();
+                channel = rabbitConnection.CreateModel();
+                messageSyncTimer.Interval = 2000;
+                messageSyncTimer.Tick += MessageSyncTimer_Tick;
+                messageSyncTimer.Start();
+            }
+        }
+
+        private void MessageSyncTimer_Tick(object sender, EventArgs e)
+        {
+            hardwareInfo.RefreshMemoryStatus();
+            var msg = new
+            {
+                action = 2,
+                @params = new
+                {
+                    hostname = Environment.MachineName,
+                    uptime = Environment.TickCount64,
+                    loads = cpuUsage.NextValue(),
+                    memUsed = hardwareInfo.MemoryStatus.TotalPhysical - hardwareInfo.MemoryStatus.AvailablePhysical,
+                    memPercent = 100d * (hardwareInfo.MemoryStatus.TotalPhysical - hardwareInfo.MemoryStatus.AvailablePhysical) / hardwareInfo.MemoryStatus.TotalPhysical
+                }
+            };
+            var properties = channel.CreateBasicProperties();
+            properties.Expiration = "2000";
+            channel.BasicPublish("", commandQueue, false, properties, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg)));
+        }
     }
 }

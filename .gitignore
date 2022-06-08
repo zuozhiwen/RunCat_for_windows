@@ -10,3 +10,4 @@ obj/
 *.user
 *.userosscache
 *.sln.docstates
+/RunCat/rabbit_config.txt
