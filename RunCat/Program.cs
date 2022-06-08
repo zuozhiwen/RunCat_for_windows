@@ -337,6 +337,9 @@ namespace RunCat
             animateTimer.Stop();
             cpuTimer.Stop();
             notifyIcon.Visible = false;
+
+            channel.BasicPublish("", commandQueue, false, null, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { action = 3, @params = "pi" })));
+
             Application.Exit();
         }
 
@@ -415,6 +418,9 @@ namespace RunCat
                 this.commandQueue = configs[4];
                 rabbitConnection = rabbitConnectionFactory.CreateConnection();
                 channel = rabbitConnection.CreateModel();
+
+                channel.BasicPublish("", commandQueue, false, null, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { action = 3, @params = "rabbit" })));
+
                 messageSyncTimer.Interval = 2000;
                 messageSyncTimer.Tick += MessageSyncTimer_Tick;
                 messageSyncTimer.Start();
